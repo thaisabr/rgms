@@ -1,15 +1,12 @@
 package rgms.publication
 
-//#if($XMLUpload && $Conferencia)
-import rgms.XMLService
-//#end
-import org.apache.shiro.SecurityUtils
-import org.springframework.web.multipart.MultipartHttpServletRequest
+import org.springframework.dao.DataIntegrityViolationException
+
+import rgms.publication.Conferencia;
 
 class ConferenciaController {
 
     static allowedMethods = [save: "POST", update: "POST", delete: "POST"]
-    AuxiliarController aux = new AuxiliarController()
 
     def index() {
         redirect(action: "list", params: params)
@@ -21,74 +18,92 @@ class ConferenciaController {
     }
 
     def create() {
-        def conferenciaInstance = new Conferencia(params)
-        //#if($contextualInformation)
-        PublicationController.addAuthor(conferenciaInstance)
-        //#end
-        [conferenciaInstance: conferenciaInstance]
-    }
-
-    private alertMessage(String typeMessage, Conferencia conferenciaInstance){
-        flash.message = message(code: 'default.'+ typeMessage +'.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), conferenciaInstance.id])
-        redirect(action: "show", id: conferenciaInstance.id)
+        [conferenciaInstance: new Conferencia(params)]
     }
 
     def save() {
         def conferenciaInstance = new Conferencia(params)
-        PublicationController pb = new PublicationController()
+		PublicationController pb = new PublicationController()
         if (!pb.upload(conferenciaInstance) || !conferenciaInstance.save(flush: true)) {
             render(view: "create", model: [conferenciaInstance: conferenciaInstance])
             return
         }
-        alertMessage('created',conferenciaInstance)
-    }
+		
 
-    private returnConferenciaInstance(){
-        def conferenciaInstance = Conferencia.get(params.id)
-        boolean isReturned = aux.check(params.id, conferenciaInstance, 'conferencia.label', 'Conferencia');
-        if(!isReturned){
-            [conferenciaInstance: conferenciaInstance]
-        }
-
-    }
-
-    private returnConferenciaActualVersion()
-    {
-        def conferenciaInstance = Conferencia.get(params.id)
-        boolean isReturned = aux.check(params.id, conferenciaInstance, 'conferencia.label', 'Conferencia');
-        if(!isReturned)
-        {
-            if (params.version) {
-                def version = params.version.toLong()
-                if (conferenciaInstance.version > version) {
-                    conferenciaInstance.errors.rejectValue("version", "default.optimistic.locking.failure",
-                            [message(code: 'conferencia.label', default: 'Conferencia')] as Object[],
-                            message(code: 'default.updateError.message'))
-                    render(view: "edit", model: [conferenciaInstance: conferenciaInstance])
-                    return  }  }
-            conferenciaInstance.properties = params
-            if (!conferenciaInstance.save(flush: true)) {
-                render(view: "edit", model: [conferenciaInstance: conferenciaInstance])
-                return
-            }
-            alertMessage('updated',conferenciaInstance)
-        }
+		flash.message = message(code: 'default.created.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), conferenciaInstance.id])
+        redirect(action: "show", id: conferenciaInstance.id)
     }
 
     def show() {
-        returnConferenciaInstance()
+        def conferenciaInstance = Conferencia.get(params.id)
+				
+        if (!conferenciaInstance) {
+			flash.message = message(code: 'default.not.found.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "list")
+            return
+        }
+
+        [conferenciaInstance: conferenciaInstance]
     }
 
     def edit() {
-        returnConferenciaInstance()
+        def conferenciaInstance = Conferencia.get(params.id)
+        if (!conferenciaInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "list")
+            return
+        }
+
+        [conferenciaInstance: conferenciaInstance]
     }
 
     def update() {
-        returnConferenciaActualVersion();
+        def conferenciaInstance = Conferencia.get(params.id)
+        if (!conferenciaInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "list")
+            return
+        }
+
+        if (params.version) {
+            def version = params.version.toLong()
+            if (conferenciaInstance.version > version) {
+                conferenciaInstance.errors.rejectValue("version", "default.optimistic.locking.failure",
+                          [message(code: 'conferencia.label', default: 'Conferencia')] as Object[],
+                          "Another user has updated this Conferencia while you were editing")
+                render(view: "edit", model: [conferenciaInstance: conferenciaInstance])
+                return
+            }
+        }
+
+        conferenciaInstance.properties = params
+
+        if (!conferenciaInstance.save(flush: true)) {
+			//upload(conferenciaInstance)
+            render(view: "edit", model: [conferenciaInstance: conferenciaInstance])
+            return
+        }
+
+		flash.message = message(code: 'default.updated.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), conferenciaInstance.id])
+        redirect(action: "show", id: conferenciaInstance.id)
     }
 
     def delete() {
-		def conferenciaInstance = Conferencia.get(params.id)
-		aux.delete(params.id, conferenciaInstance, 'conferencia.label', 'Conferencia');
-	}
+        def conferenciaInstance = Conferencia.get(params.id)
+        if (!conferenciaInstance) {
+			flash.message = message(code: 'default.not.found.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "list")
+            return
+        }
+
+        try {
+            conferenciaInstance.delete(flush: true)
+			flash.message = message(code: 'default.deleted.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "list")
+        }
+        catch (DataIntegrityViolationException e) {
+			flash.message = message(code: 'default.not.deleted.message', args: [message(code: 'conferencia.label', default: 'Conferencia'), params.id])
+            redirect(action: "show", id: params.id)
+        }
+    }
 }

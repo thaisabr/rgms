@@ -1,10 +1,11 @@
 package rgms.publication
-//#if($XMLUpload && $BookChapter)
-//#end
+
+import org.springframework.dao.DataIntegrityViolationException
+
+
 class BookChapterController {
 
     static allowedMethods = [save: "POST", update: "POST", delete: "POST"]
-    AuxiliarController aux = new AuxiliarController()
 
     def index() {
         redirect(action: "list", params: params)
@@ -16,84 +17,88 @@ class BookChapterController {
     }
 
     def create() {
-        def bookChapterInstance = new BookChapter(params)
-        //#if($contextualInformation)
-        PublicationController.addAuthor(bookChapterInstance)
-        //#end
-        [bookChapterInstance: bookChapterInstance]
+        [bookChapterInstance: new BookChapter(params)]
     }
 
     def save() {
-        PublicationController pb = new PublicationController()
         def bookChapterInstance = new BookChapter(params)
-
-        bookChapterInstance = (BookChapter) pb.extractAuthors(bookChapterInstance)
-
-
+		PublicationController pb = new PublicationController()
         if (!pb.upload(bookChapterInstance) || !bookChapterInstance.save(flush: true)) {
             render(view: "create", model: [bookChapterInstance: bookChapterInstance])
             return
         }
-        //#if($facebook)
-        //def user = User.findByUsername(SecurityUtils.subject.principal)
-        //Member author = user?.author
-        //pb.sendPostFacebook(author, bookChapterInstance.toString())
-        //#end
-        //noinspection InvalidI18nProperty
+
         flash.message = message(code: 'default.created.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), bookChapterInstance.id])
         redirect(action: "show", id: bookChapterInstance.id)
     }
 
-    def accessBookChapter(Long id) {
-        def bookChapterInstance = BookChapter.get(id)
-        boolean isReturned = aux.check(id, bookChapterInstance, 'bookChapter.label', 'BookChapter');
-        if (!isReturned) {
-            [bookChapterInstance: bookChapterInstance]
-        }
-    }
-
     def show(Long id) {
-        accessBookChapter(id)
+        def bookChapterInstance = BookChapter.get(id)
+        if (!bookChapterInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "list")
+            return
+        }
+
+        [bookChapterInstance: bookChapterInstance]
     }
 
     def edit(Long id) {
-        accessBookChapter(id)
+        def bookChapterInstance = BookChapter.get(id)
+        if (!bookChapterInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "list")
+            return
+        }
+
+        [bookChapterInstance: bookChapterInstance]
     }
 
     def update(Long id, Long version) {
         def bookChapterInstance = BookChapter.get(id)
-        boolean isReturned = aux.check(id, bookChapterInstance, 'bookChapter.label', 'BookChapter')
-        if (!isReturned) {
-            if (version != null && bookChapterInstance.version > version) {
-                outdatedVersionError((BookChapter) bookChapterInstance)
-            } else {
-                saveUpdate((BookChapter) bookChapterInstance)
+        if (!bookChapterInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "list")
+            return
+        }
+
+        if (version != null) {
+            if (bookChapterInstance.version > version) {
+                bookChapterInstance.errors.rejectValue("version", "default.optimistic.locking.failure",
+                          [message(code: 'bookChapter.label', default: 'BookChapter')] as Object[],
+                          "Another user has updated this BookChapter while you were editing")
+                render(view: "edit", model: [bookChapterInstance: bookChapterInstance])
+                return
             }
         }
-    }
 
-    def outdatedVersionError(BookChapter bookChapterInstance) {
-        //noinspection InvalidI18nProperty
-        bookChapterInstance.errors.rejectValue("version", "default.optimistic.locking.failure",
-                [message(code: 'bookChapter.label', default: 'BookChapter')] as Object[],
-                "Another user has updated this BookChapter while you were editing")
-        render(view: "edit", model: [bookChapterInstance: bookChapterInstance])
-    }
-
-    def saveUpdate(BookChapter bookChapterInstance) {
         bookChapterInstance.properties = params
+
         if (!bookChapterInstance.save(flush: true)) {
             render(view: "edit", model: [bookChapterInstance: bookChapterInstance])
-        } else {
-            //noinspection InvalidI18nProperty
-            flash.message = message(code: 'default.updated.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), bookChapterInstance.id])
-            redirect(action: "show", id: bookChapterInstance.id)
+            return
         }
+
+        flash.message = message(code: 'default.updated.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), bookChapterInstance.id])
+        redirect(action: "show", id: bookChapterInstance.id)
     }
 
     def delete(Long id) {
         def bookChapterInstance = BookChapter.get(id)
-        aux.delete(id, bookChapterInstance, 'bookChapter.label', 'BookChapter');
-    }
+        if (!bookChapterInstance) {
+            flash.message = message(code: 'default.not.found.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "list")
+            return
+        }
 
+        try {
+            bookChapterInstance.delete(flush: true)
+            flash.message = message(code: 'default.deleted.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "list")
+        }
+        catch (DataIntegrityViolationException e) {
+            flash.message = message(code: 'default.not.deleted.message', args: [message(code: 'bookChapter.label', default: 'BookChapter'), id])
+            redirect(action: "show", id: id)
+        }
+    }
 }

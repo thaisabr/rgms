@@ -21,8 +21,8 @@ class XMLService {
      */
 
     def boolean Import(Closure saveEntity, Closure returnWithMessage,
-                          String flashMessage, String controller,
-                          javax.servlet.http.HttpServletRequest request) {
+                       String flashMessage, String controller,
+                       javax.servlet.http.HttpServletRequest request) {
         boolean errorFound = false
         def publications
 
@@ -753,4 +753,25 @@ class XMLService {
         newMember.save(flush: false)
     }
 
+    //if(ResearchLine)
+    private static checkContResearch(List researchLine, int i, String researchName) {
+        List<Node> researchs = ((Node) researchLine[i]).children()
+        Node basicData = (Node) researchs[0]
+        List<String> lista = new ArrayList<String>()
+
+        ResearchLine newResearch = new ResearchLine()
+
+        while (!basicData.children().empty){
+            newResearch = getResearchLine(basicData, researchName)
+            lista.add(newResearch)
+            researchs.add(this)
+        }
+        return lista
+    }
+
+    private static String getResearchLine(Node basicData, ResearchLine researchLine) {
+        researchLine.name = getAttributeValueFromNode(basicData, "TITULO-DA-LINHA-DE-PESQUISA")
+        return researchLine.name
+    }
+    //end
 }
