@@ -21,8 +21,8 @@ class XMLService {
      */
 
     def boolean Import(Closure saveEntity, Closure returnWithMessage,
-                       String flashMessage, String controller,
-                       javax.servlet.http.HttpServletRequest request) {
+                          String flashMessage, String controller,
+                          javax.servlet.http.HttpServletRequest request) {
         boolean errorFound = false
         def publications
 
